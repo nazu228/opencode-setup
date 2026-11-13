@@ -10,7 +10,7 @@
 | **Plannotator** | Визуальное ревью планов в браузере: аннотации, approve/request changes, plan diff |
 | **Context7** | Скилл `find-docs`: актуальные доки библиотек через `ctx7` CLI |
 | **graphify 0.9.108** | Граф кодовой базы: `graph.json`, `graph.html`, `query/path/explain` + скилл и плагин OpenCode |
-| **squad** | Локальный плагин мультиагентной работы + 5 агентов: `team-lid`, `analyst`, `executor`, `visual-executor`, `critic` |
+| **squad v2** | Автономный оркестратор: Lid-план, DAG, отдельный worktree на задачу, verification gate, integration-ветка и отчёт + 5 агентов: `team-lid`, `analyst`, `executor`, `visual-executor`, `critic` |
 | **oc-stats-patched** | Локальная исправленная и переведённая на русский версия `oc-stats`: статистика, стоимость, latency в сайдбаре + `/oc_stats` |
 | **grilling** | Скилл «прожарки» планов + команда `/grill-me` |
 | **graphify command** | Команда `/graphify` для запуска графа |
