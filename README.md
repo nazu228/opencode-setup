@@ -37,7 +37,19 @@
 
 Версии зафиксированы в `install.ps1` и `merge-config.mjs`. Если нужна свежая — замени `@x.y.z` на `@latest`.
 
-## Быстрая установка
+## Установка с GitHub (одной командой)
+
+```powershell
+$zip = "$env:TEMP\opencode-setup.zip"; $dir = "$env:TEMP\opencode-setup"
+Invoke-WebRequest "https://github.com/nazu228/opencode-setup/archive/refs/heads/main.zip" -OutFile $zip
+Remove-Item $dir -Recurse -Force -ErrorAction SilentlyContinue
+Expand-Archive $zip $dir -Force
+& "$dir\opencode-setup-main\install.ps1"
+```
+
+Или вставь агенту содержимое `PROMPT.md` — он сделает то же самое.
+
+## Установка из локальной папки
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
