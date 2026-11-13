@@ -1,0 +1,14 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "openrouter/deepseek/deepseek-v4.1-flash-1017",
+  "plugins": [
+    "cc-safety-net@2.7.12",
+    {
+      "package": "@plannotator/opencode@0.28.62",
+      "options": {
+        "workflow": "plan-agent",
+        "planningAgents": ["team-lid"]
+      }
+    }
+  ]
+}
