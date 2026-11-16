@@ -10,13 +10,12 @@ import { createElement as _$createElement } from "@opentui/solid";
 /**
  * The oc-stats panel in the session sidebar.
  *
- * It is intentionally cheap: a `experimental.session.stats` request for the selected range,
- * one more for the previous range, and one scoped to the current project. No message fetching.
+ * It is intentionally cheap: one `experimental.session.stats` request for the selected range.
  * The full `/oc_stats` window remains the place for projects, sessions and latency detail.
  */
 import { createEffect, createMemo, createSignal, onCleanup, onMount, Show } from "solid-js";
-import { dayKey, loadPriceMap, loadSidebarSummary, projectLabel, sessionCostSplit, totalTokens } from "./data.js";
-import { delta, pad, pct, tokens as fmtTokens, truncate, usd } from "./format.js";
+import { loadPriceMap, loadSidebarSummary, sessionCostSplit, totalTokens } from "./data.js";
+import { pad, pct, tokens as fmtTokens, usd } from "./format.js";
 const RANGES = ["24h", "7d", "30d", "90d", "all"];
 const RANGE_LABELS = {
   "24h": "24ч",
@@ -28,31 +27,11 @@ const RANGE_LABELS = {
 function rangeLabel(range) {
   return RANGE_LABELS[range] ?? range;
 }
-const SPARKS = ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"];
 /** Columns the panel uses until it knows its real width. */
 const DEFAULT_WIDTH = 36;
 function nextRange(range) {
   const index = RANGES.indexOf(range);
   return RANGES[(index + 1) % RANGES.length];
-}
-function sparkline(values) {
-  if (values.length === 0) return "";
-  const max = Math.max(1, ...values);
-  return values.map(value => SPARKS[Math.min(SPARKS.length - 1, Math.round(value / max * (SPARKS.length - 1)))]).join("");
-}
-
-/** The last `days` daily step counts, filling days the server did not report with zero. */
-function recentSteps(activity, days) {
-  const byDay = new Map(activity.map(item => [item.date, item.steps]));
-  const values = [];
-  const cursor = new Date();
-  cursor.setHours(0, 0, 0, 0);
-  for (let offset = days - 1; offset >= 0; offset -= 1) {
-    const day = new Date(cursor);
-    day.setDate(cursor.getDate() - offset);
-    values.push(byDay.get(dayKey(day.getTime())) ?? 0);
-  }
-  return values;
 }
 function Row(props) {
   return (() => {
@@ -283,7 +262,6 @@ function CostBar(props) {
 export function StatsSidebar(props) {
   const theme = () => props.ctx.theme;
   const [summary, setSummary] = createSignal();
-  const [project, setProject] = createSignal();
   const [error, setError] = createSignal("");
   const [width, setWidth] = createSignal(DEFAULT_WIDTH);
   const [prices, setPrices] = createSignal(new Map());
@@ -298,17 +276,13 @@ export function StatsSidebar(props) {
   };
   async function load() {
     const id = ++request;
-    const projectID = session()?.projectID;
     try {
-      const [global, scoped] = await Promise.all([loadSidebarSummary(props.ctx.client, props.state.range, {
-        previous: true
-      }), projectID ? loadSidebarSummary(props.ctx.client, props.state.range, {
-        project: projectID,
-        previous: false
-      }).catch(() => undefined) : Promise.resolve(undefined)]);
+      const global = await loadSidebarSummary(props.ctx.client, props.state.range, {
+        previous: false,
+        tools: "summary"
+      });
       if (!alive || id !== request) return;
       setSummary(global);
-      setProject(scoped);
       setError("");
     } catch (cause) {
       if (!alive || id !== request) return;
@@ -324,7 +298,6 @@ export function StatsSidebar(props) {
   createEffect(() => {
     props.state.range;
     props.sessionID;
-    session()?.projectID;
     void load();
   });
   onMount(() => {
@@ -345,31 +318,9 @@ export function StatsSidebar(props) {
     return total > 0 ? read / total : 0;
   };
   const split = createMemo(() => sessionCostSplit(session(), prices()));
-  const projectName = () => {
-    try {
-      const projectID = session()?.projectID;
-      const value = projectID ? props.ctx.data?.project?.get?.(projectID) : undefined;
-      return truncate(projectLabel(value ?? {
-        canonical: session()?.directory
-      }), 16);
-    } catch {
-      return "проект";
-    }
-  };
   const toolErrorRate = () => {
     const tools = summary()?.tools;
     return tools && tools.calls > 0 ? tools.failed / tools.calls : 0;
-  };
-  const spark = createMemo(() => sparkline(recentSteps(summary()?.activity ?? [], Math.max(8, Math.min(20, width() - 9)))));
-  const costNote = () => {
-    const previous = summary()?.previous?.cost;
-    if (previous === undefined) return undefined;
-    return delta(summary().cost, previous);
-  };
-  const costNoteColor = () => {
-    const previous = summary()?.previous?.cost;
-    if (previous === undefined) return theme().text.muted;
-    return summary().cost <= previous ? theme().text.feedback.success.base : theme().text.feedback.warning.base;
   };
   const errorNoteColor = () => toolErrorRate() > 0.05 ? theme().text.feedback.error.base : theme().text.muted;
   function toggle() {
@@ -417,7 +368,7 @@ export function StatsSidebar(props) {
         _$setProp(_el$30, "selectable", false);
         _$insert(_el$30, (() => {
           var _c$ = _$memo(() => !!summary());
-          return () => _c$() ? `${usd(sessionCost())} сессия · ${usd(summary().cost)} ${rangeLabel(props.state.range)}` : "…";
+          return () => _c$() ? `${usd(sessionCost())} сессия` : "…";
         })());
         _$effect(_$p => _$setProp(_el$30, "fg", theme().text.muted, _$p));
         return _el$30;
@@ -516,38 +467,6 @@ export function StatsSidebar(props) {
               get split() {
                 return split();
               }
-            }), _$createComponent(Show, {
-              get when() {
-                return project();
-              },
-              get children() {
-                return [_$createComponent(Header, {
-                  get theme() {
-                    return theme();
-                  },
-                  label: "\u041F\u0440\u043E\u0435\u043A\u0442",
-                  get color() {
-                    return theme().text.feedback.warning.base;
-                  },
-                  get note() {
-                    return projectName();
-                  },
-                  get width() {
-                    return width();
-                  }
-                }), _$createComponent(Row, {
-                  get theme() {
-                    return theme();
-                  },
-                  label: "\u0420\u0430\u0441\u0445\u043E\u0434",
-                  get value() {
-                    return usd(project().cost);
-                  },
-                  get color() {
-                    return theme().text.feedback.success.base;
-                  }
-                })];
-              }
             }), _$createComponent(Header, {
               get theme() {
                 return theme();
@@ -570,23 +489,6 @@ export function StatsSidebar(props) {
                 return width();
               },
               onPress: cycleRange
-            }), _$createComponent(Row, {
-              get theme() {
-                return theme();
-              },
-              label: "\u0420\u0430\u0441\u0445\u043E\u0434",
-              get value() {
-                return usd(summary().cost);
-              },
-              get note() {
-                return costNote();
-              },
-              get noteColor() {
-                return costNoteColor();
-              },
-              get color() {
-                return theme().text.feedback.success.base;
-              }
             }), _$createComponent(Row, {
               get theme() {
                 return theme();
@@ -615,61 +517,9 @@ export function StatsSidebar(props) {
               get noteColor() {
                 return errorNoteColor();
               }
-            }), _$createComponent(Row, {
-              get theme() {
-                return theme();
-              },
-              label: "\u0421\u0435\u0440\u0438\u044F",
-              get value() {
-                return `${summary().streak} дн.`;
-              },
-              get note() {
-                return `${summary().sessions + summary().subagents} сессий`;
-              }
-            }), (() => {
-              var _el$32 = _$createElement("text"),
-                _el$33 = _$createElement("span"),
-                _el$34 = _$createElement("span");
-              _$insertNode(_el$32, _el$33);
-              _$insertNode(_el$32, _el$34);
-              _$setProp(_el$32, "wrapMode", "none");
-              _$setProp(_el$32, "selectable", false);
-              _$insert(_el$33, () => pad("Шаги", 8));
-              _$insert(_el$34, () => spark() || "—");
-              _$effect(_p$ => {
-                var _v$11 = {
-                    fg: theme().text.muted
-                  },
-                  _v$12 = {
-                    fg: theme().hue.accent[500]
-                  };
-                _v$11 !== _p$.e && (_p$.e = _$setProp(_el$33, "style", _v$11, _p$.e));
-                _v$12 !== _p$.t && (_p$.t = _$setProp(_el$34, "style", _v$12, _p$.t));
-                return _p$;
-              }, {
-                e: undefined,
-                t: undefined
-              });
-              return _el$32;
-            })()];
+            })];
           }
-        }), (() => {
-          var _el$35 = _$createElement("text");
-          _$insertNode(_el$35, _$createTextNode(`открыть /oc_stats ↗`));
-          _$setProp(_el$35, "wrapMode", "none");
-          _$setProp(_el$35, "selectable", false);
-          _$effect(_p$ => {
-            var _v$13 = theme().text.action.primary.selected,
-              _v$14 = props.openStats;
-            _v$13 !== _p$.e && (_p$.e = _$setProp(_el$35, "fg", _v$13, _p$.e));
-            _v$14 !== _p$.t && (_p$.t = _$setProp(_el$35, "onMouseUp", _v$14, _p$.t));
-            return _p$;
-          }, {
-            e: undefined,
-            t: undefined
-          });
-          return _el$35;
-        })()];
+        })];
       }
     }), null);
     _$effect(_p$ => {

@@ -1,5 +1,7 @@
 # OpenCode setup bundle
 
+> **Visual setup:** animated Mitsuha wallpaper, glass stats sidebar, mitsuha theme, and the wallpaper-swap skill — see [VISUALS.md](VISUALS.md).
+
 Переносимый набор моих плагинов, агентов, скиллов и команд для OpenCode 2 на Windows.
 
 ## Что внутри

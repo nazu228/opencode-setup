@@ -1859,9 +1859,11 @@ function StatsApp(props) {
   const [focus, setFocus] = createSignal(0);
   let request = 0;
   let alive = true;
+  globalThis.__opencodeStatsDialogOpen = true;
   onCleanup(() => {
     alive = false;
     request += 1;
+    globalThis.__opencodeStatsDialogOpen = false;
   });
   async function load() {
     const id = ++request;
@@ -2393,12 +2395,27 @@ const plugin = Plugin.define({
             return props.sessionID;
           },
           state: state,
-          update: update,
-          openStats: open
+          update: update
         });
       }
     });
-    return () => disposeSidebar();
+    let disposeLimits;
+    void import("./limits-footer.js")
+      .then(module => {
+        disposeLimits = context.ui.slot({
+          append: "sidebar.footer",
+          render: () => _$createComponent(module.LimitsFooter, {
+            ctx: context
+          })
+        });
+      })
+      .catch(error => {
+        console.error("limits footer failed", error);
+      });
+    return () => {
+      disposeSidebar();
+      disposeLimits?.();
+    };
   }
 });
 export default plugin;

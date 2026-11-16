@@ -32,6 +32,19 @@ if (-not (Test-Path "$config\SQUAD.md")) {
 }
 Write-Ok "agents, commands, grilling skill, squad, oc-stats-patched, SQUAD.md"
 
+Write-Step "Install visual setup"
+New-Item -ItemType Directory -Force -Path "$config\themes" | Out-Null
+if (Test-Path "$config\plugins\mitsuha-wallpaper") {
+  Remove-Item "$config\plugins\mitsuha-wallpaper" -Recurse -Force
+}
+Copy-Item "$payload\plugins\mitsuha-wallpaper" "$config\plugins\mitsuha-wallpaper" -Recurse -Force
+if (Test-Path "$config\skills\wallpaper-swap") {
+  Remove-Item "$config\skills\wallpaper-swap" -Recurse -Force
+}
+Copy-Item "$payload\skills\wallpaper-swap" "$config\skills\wallpaper-swap" -Recurse -Force
+Copy-Item "$payload\config\themes\mitsuha.json" "$config\themes\mitsuha.json" -Force
+Write-Ok "mitsuha wallpaper, theme, and wallpaper-swap skill"
+
 $agentsExisted = Test-Path "$config\AGENTS.md"
 
 Write-Step "Install OpenCode plugins"
@@ -47,6 +60,7 @@ if ($opencode) {
 $node = Get-Command node -ErrorAction SilentlyContinue
 if ($node) {
   & node "$root\merge-config.mjs" "$config"
+  & node "$root\merge-cli.mjs" "$config"
   Write-Ok "config merged"
 } else {
   Write-Warn "Node.js not found; copy payload\config\opencode.json manually"
@@ -103,6 +117,21 @@ try {
   Write-Host "  Run manually: python -m pip install --user graphifyy==0.9.108; python -m graphify install --platform opencode"
 }
 
+Write-Step "Install Windows Terminal"
+try {
+  $terminal = Get-AppxPackage -Name Microsoft.WindowsTerminal -ErrorAction SilentlyContinue
+  if ($terminal) {
+    Write-Ok "Windows Terminal already installed"
+  } elseif (Get-Command winget -ErrorAction SilentlyContinue) {
+    & winget install --id Microsoft.WindowsTerminal -e --accept-package-agreements --accept-source-agreements --disable-interactivity
+    Write-Ok "Windows Terminal installed"
+  } else {
+    Write-Warn "winget not found; install Windows Terminal manually"
+  }
+} catch {
+  Write-Warn "Windows Terminal install failed: $($_.Exception.Message)"
+}
+
 Write-Step "Restore global AGENTS.md"
 if (-not $agentsExisted) {
   Copy-Item "$payload\config\AGENTS.md" "$config\AGENTS.md" -Force
@@ -118,5 +147,7 @@ if (Get-Command plannotator -ErrorAction SilentlyContinue) { & plannotator --ver
 if (Get-Command opencode -ErrorAction SilentlyContinue) { & opencode debug agents }
 
 Write-Host "`nDone." -ForegroundColor Green
-Write-Host "Restart the OpenCode TUI (close and reopen) to load the TUI plugins."
+Write-Host "Run OpenCode inside Windows Terminal for smooth cursor/wallpaper rendering."
+Write-Host "Restart the OpenCode TUI (close and reopen) to load the visual plugins and the mitsuha theme."
+Write-Host "Useful commands: /wallpaper, /wallpaper icons 65, /wallpaper panel 60, /oc_stats."
 Write-Host "If Context7 asked for device authorization, finish it in the browser."

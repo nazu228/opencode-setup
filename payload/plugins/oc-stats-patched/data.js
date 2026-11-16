@@ -614,7 +614,7 @@ export async function loadSidebarSummary(client, range, options = {}, now = Date
   const query = {
     to: win.to,
     timezone,
-    tools: options.previous === false ? "none" : "summary"
+    tools: options.tools ?? (options.previous === false ? "none" : "summary")
   };
   if (win.from > 0) query.from = win.from;
   if (options.project) query.project = options.project;
