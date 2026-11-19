@@ -12,7 +12,7 @@
 | **Plannotator** | Визуальное ревью планов в браузере: аннотации, approve/request changes, plan diff |
 | **Context7** | Скилл `find-docs`: актуальные доки библиотек через `ctx7` CLI |
 | **graphify 0.9.108** | Граф кодовой базы: `graph.json`, `graph.html`, `query/path/explain` + скилл и плагин OpenCode |
-| **squad v2** | Автономный оркестратор: Lid-план, DAG, отдельный worktree на задачу, verification gate, integration-ветка и отчёт + 5 агентов: `team-lid`, `analyst`, `executor`, `visual-executor`, `critic` |
+| **squad v2** | Автономный оркестратор: Lid-план, DAG, contracts, `--batch`, отдельный worktree на задачу, local + integration gate, бюджеты, отмена и восстановление run, доска агентов; 5 агентов: `team-lid`, `analyst`, `executor`, `visual-executor`, `critic` + скилл `squad` |
 | **oc-stats-patched** | Локальная исправленная и переведённая на русский версия `oc-stats`: статистика, стоимость, latency в сайдбаре + `/oc_stats` |
 | **grilling** | Скилл «прожарки» планов + команда `/grill-me` |
 | **graphify command** | Команда `/graphify` для запуска графа |
@@ -87,6 +87,7 @@ opencode auth login   # подключить OpenRouter / DeepSeek или дру
 Copy-Item .\payload\agents\* "$env:USERPROFILE\.config\opencode\agents" -Force
 Copy-Item .\payload\commands\* "$env:USERPROFILE\.config\opencode\commands" -Force
 Copy-Item .\payload\skills\grilling "$env:USERPROFILE\.config\opencode\skills\grilling" -Recurse -Force
+Copy-Item .\payload\skills\squad "$env:USERPROFILE\.config\opencode\skills\squad" -Recurse -Force
 Copy-Item .\payload\plugins\squad "$env:USERPROFILE\.config\opencode\plugins\squad" -Recurse -Force
 Copy-Item .\payload\plugins\oc-stats-patched "$env:USERPROFILE\.config\opencode\plugins\oc-stats-patched" -Recurse -Force
 

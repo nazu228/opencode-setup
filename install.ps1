@@ -23,6 +23,8 @@ Copy-Item "$payload\agents\*" "$config\agents" -Force
 Copy-Item "$payload\commands\*" "$config\commands" -Force
 New-Item -ItemType Directory -Force -Path "$config\skills\grilling" | Out-Null
 Copy-Item "$payload\skills\grilling\SKILL.md" "$config\skills\grilling\SKILL.md" -Force
+New-Item -ItemType Directory -Force -Path "$config\skills\squad" | Out-Null
+Copy-Item "$payload\skills\squad\SKILL.md" "$config\skills\squad\SKILL.md" -Force
 if (Test-Path "$config\plugins\squad") { Remove-Item "$config\plugins\squad" -Recurse -Force }
 Copy-Item "$payload\plugins\squad" "$config\plugins\squad" -Recurse -Force
 if (Test-Path "$config\plugins\oc-stats-patched") { Remove-Item "$config\plugins\oc-stats-patched" -Recurse -Force }
@@ -30,7 +32,7 @@ Copy-Item "$payload\plugins\oc-stats-patched" "$config\plugins\oc-stats-patched"
 if (-not (Test-Path "$config\SQUAD.md")) {
   Copy-Item "$payload\config\SQUAD.md" "$config\SQUAD.md" -Force
 }
-Write-Ok "agents, commands, grilling skill, squad, oc-stats-patched, SQUAD.md"
+Write-Ok "agents, commands, grilling + squad skills, squad, oc-stats-patched, SQUAD.md"
 
 Write-Step "Install visual setup"
 New-Item -ItemType Directory -Force -Path "$config\themes" | Out-Null

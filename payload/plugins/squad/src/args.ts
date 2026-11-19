@@ -21,7 +21,7 @@ const ROLE_ALIASES: Record<string, SquadRole> = {
 }
 
 export const USAGE = [
-  "Формат: /squad [--agents N] [--roles a,b] [--concurrency N] [--timeout N] [--ideal] [--base ref] [--verify \"cmd\"] <задача>",
+  "Формат: /squad [--agents N] [--roles a,b] [--concurrency N] [--timeout N] [--ideal] [--base ref] [--verify \"cmd\"] [--contracts|--no-contracts] [--local-gate auto|strict|off] [--batch] [--analysis-only] <задача>",
   "Пример: /squad 4 Добавь JWT-авторизацию и тесты",
   "Пример: /squad --agents 6 --ideal --verify \"npm test\" Отрефактори модуль оплаты",
   "Всегда используется git worktree и отдельная integration-ветка; основное рабочее дерево не меняется.",
@@ -29,6 +29,13 @@ export const USAGE = [
 
 export const STATUS_USAGE = "Формат: /squad-status [run-id]. Без run-id показывается последний запуск."
 export const ANSWER_USAGE = "Формат: /squad-answer <question-id> <ответ>."
+export const CANCEL_USAGE = "Формат: /squad-cancel [run-id]. Без run-id отменяется последний активный запуск."
+
+function normalizeLocalGate(raw: string): "auto" | "strict" | "off" {
+  const value = raw.trim().toLowerCase()
+  if (value === "auto" || value === "strict" || value === "off") return value
+  throw new Error(`--local-gate должен быть auto, strict или off, а не "${raw}".`)
+}
 
 function normalizeRole(raw: string): SquadRole {
   const value = raw.trim().toLowerCase()
@@ -109,18 +116,52 @@ function parseInteger(value: string, flag: string): number {
   return number
 }
 
+function parseNumber(value: string, flag: string): number {
+  const number = Number(value)
+  if (!Number.isFinite(number) || number <= 0) throw new Error(`Флаг ${flag} требует положительное число.`)
+  return number
+}
+
 function finalize(options: SquadOptions): SquadOptions {
   if (!options.task.trim()) throw new Error("Не указана задача.")
-  if (options.maxTasks < 1 || options.maxTasks > 12) {
-    throw new Error("Количество задач (--agents) должно быть от 1 до 12.")
+  if (!Number.isFinite(options.maxTasks) || !Number.isInteger(options.maxTasks)) {
+    throw new Error("Количество задач (--agents) должно быть целым числом.")
   }
+  const maxTasksLimit = options.batch ? 20 : 12
+  if (options.maxTasks < 1 || options.maxTasks > maxTasksLimit) {
+    throw new Error(`Количество задач (--agents) должно быть от 1 до ${maxTasksLimit}.`)
+  }
+  if (!Number.isFinite(options.concurrency)) throw new Error("--concurrency требует число.")
   if (options.concurrency < 1) options.concurrency = 8
   if (options.concurrency > 12) options.concurrency = 12
   options.concurrency = Math.min(options.concurrency, options.maxTasks)
+  if (!Number.isFinite(options.timeoutMinutes)) throw new Error("--timeout требует число.")
   if (options.timeoutMinutes < 1) options.timeoutMinutes = 15
   if (options.timeoutMinutes > 120) options.timeoutMinutes = 120
   if (!options.roles.length) options.roles = [...ROLE_ORDER]
   if (/(^|\s)(идеально|ideal)(\s|$)/i.test(options.task)) options.ideal = true
+  options.batch = options.batch === true
+  options.localGate = options.localGate ?? "auto"
+  options.cleanupOnFailure = options.cleanupOnFailure === true
+  options.analysisOnly = options.analysisOnly === true
+  options.strictTests = options.strictTests === true
+  if (options.batch && options.maxCostUsd == null && options.maxTotalTokens == null && options.maxRunMinutes == null) {
+    // Batch is explicitly opt-in and must be bounded; config may still provide a budget later.
+    options.maxRunMinutes = 60
+  }
+  if (options.buildConcurrency != null) {
+    if (!Number.isInteger(options.buildConcurrency) || options.buildConcurrency < 1 || options.buildConcurrency > 12) {
+      throw new Error("--build-concurrency должен быть целым числом от 1 до 12.")
+    }
+  }
+  for (const [name, value] of [
+    ["--max-cost", options.maxCostUsd],
+    ["--max-tokens", options.maxTotalTokens],
+    ["--max-minutes", options.maxRunMinutes],
+  ] as const) {
+    if (value == null) continue
+    if (!Number.isFinite(value) || value <= 0) throw new Error(`${name} требует положительное число.`)
+  }
   return options
 }
 
@@ -198,6 +239,66 @@ export function parseSquadArgs(raw: string): SquadOptions {
       index++
       continue
     }
+    if (flag === "--contracts") {
+      options.contracts = true
+      index++
+      continue
+    }
+    if (flag === "--no-contracts") {
+      options.contracts = false
+      index++
+      continue
+    }
+    if (flag === "--batch") {
+      options.batch = true
+      index++
+      continue
+    }
+    if (flag === "--local-gate") {
+      const { value, next } = readValue(tokens, index, flag)
+      options.localGate = normalizeLocalGate(value)
+      index = next
+      continue
+    }
+    if (flag === "--cleanup-on-failure" || flag === "--cleanup") {
+      options.cleanupOnFailure = true
+      index++
+      continue
+    }
+    if (flag === "--allow-readonly" || flag === "--analysis-only") {
+      options.analysisOnly = true
+      index++
+      continue
+    }
+    if (flag === "--strict-tests") {
+      options.strictTests = true
+      index++
+      continue
+    }
+    if (flag === "--build-concurrency") {
+      const { value, next } = readValue(tokens, index, flag)
+      options.buildConcurrency = parseInteger(value, flag)
+      index = next
+      continue
+    }
+    if (flag === "--max-cost") {
+      const { value, next } = readValue(tokens, index, flag)
+      options.maxCostUsd = parseNumber(value, flag)
+      index = next
+      continue
+    }
+    if (flag === "--max-tokens") {
+      const { value, next } = readValue(tokens, index, flag)
+      options.maxTotalTokens = parseNumber(value, flag)
+      index = next
+      continue
+    }
+    if (flag === "--max-minutes") {
+      const { value, next } = readValue(tokens, index, flag)
+      options.maxRunMinutes = parseNumber(value, flag)
+      index = next
+      continue
+    }
     if (flag === "--keep-worktrees") {
       options.keepWorktrees = true
       index++
@@ -240,6 +341,16 @@ export function parseToolInput(input: unknown): SquadOptions {
     base: value.base == null ? undefined : String(value.base),
     verify,
     keepWorktrees: value.keep_worktrees === true,
+    contracts: typeof value.contracts === "boolean" ? value.contracts : undefined,
+    batch: value.batch === true,
+    localGate: value.local_gate == null ? "auto" : normalizeLocalGate(String(value.local_gate)),
+    cleanupOnFailure: value.cleanup_on_failure === true,
+    analysisOnly: value.allow_readonly === true || value.analysis_only === true,
+    strictTests: value.strict_tests === true,
+    buildConcurrency: value.build_concurrency == null ? undefined : Number(value.build_concurrency),
+    maxCostUsd: value.max_cost_usd == null ? undefined : Number(value.max_cost_usd),
+    maxTotalTokens: value.max_total_tokens == null ? undefined : Number(value.max_total_tokens),
+    maxRunMinutes: value.max_run_minutes == null ? undefined : Number(value.max_run_minutes),
   }
   return finalize(options)
 }
@@ -261,6 +372,14 @@ export function parseAnswerArgs(raw: string): { questionId: string; text: string
   const answer = tokens.join(" ").trim()
   if (!answer) throw new Error(ANSWER_USAGE)
   return { questionId, text: answer }
+}
+
+export function parseCancelArgs(raw: string): { runId?: string } {
+  const text = String(raw ?? "").trim().replace(/^\/squad-cancel\b/i, "").trim()
+  if (!text) return {}
+  const [runId, ...rest] = tokenize(text)
+  if (!runId || rest.length) throw new Error(CANCEL_USAGE)
+  return { runId }
 }
 
 export function buildInstances(count: number, roles: readonly SquadRole[]): { role: SquadRole; index: number; id: string }[] {

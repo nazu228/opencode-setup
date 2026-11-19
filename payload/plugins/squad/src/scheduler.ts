@@ -13,6 +13,7 @@ export interface DagResult<T> {
 
 export interface DagHooks {
   onStatus?: (taskId: string, status: DagStatus, error?: string) => void | Promise<void>
+  shouldStop?: () => string | undefined
 }
 
 export function validateDag(tasks: readonly DagTask[]): void {
@@ -68,6 +69,15 @@ export async function runDag<T>(
 
   for (;;) {
     let changed = false
+    const stopReason = hooks.shouldStop?.()
+    if (stopReason) {
+      for (const task of tasks) {
+        if (statuses[task.id] === "pending" || statuses[task.id] === "ready") {
+          await notify(task.id, "skipped", stopReason)
+          changed = true
+        }
+      }
+    }
     for (const task of tasks) {
       if (statuses[task.id] !== "pending") continue
       const dependencies = task.dependsOn.map((id) => statuses[id] ?? "pending")

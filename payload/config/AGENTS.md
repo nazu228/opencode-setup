@@ -36,6 +36,10 @@
 - **Core & Server (`packages/core`, `packages/server`):** Read `packages/core/AGENTS.md` and `packages/server/AGENTS.md` before changing async plugin loading or session execution/inbox durability invariants.
 - **New Endpoints:** New routes start under `/api/experimental/<group>/...` (`experimental.<group>.<method>`). See `packages/protocol/AGENTS.md` for graduation and deprecation alias rules.
 
+## Squad
+
+- **Before invoking the `squad` tool, or before preparing a `/squad` prompt: load the `squad` skill and pass a structured brief.** Never start a run with a one-line vague task; define file ownership, roles, dependencies, acceptance, and checks first.
+
 <!-- context7 -->
 Use the `ctx7` CLI to fetch current documentation whenever the user asks about a library, framework, SDK, API, CLI tool, or cloud service — even well-known ones like React, Next.js, Prisma, Express, Tailwind, Django, or Spring Boot. This includes API syntax, configuration, version migration, porting code between libraries, platforms, or SQL dialects, library-specific debugging, setup instructions, and CLI tool usage. Use even when you think you know the answer — your training data may not reflect recent changes. Prefer this over web search for library docs.
 

@@ -12,13 +12,19 @@ interface ShellResult {
   output: string
 }
 
-async function runShell(command: string, cwd: string, timeoutMs: number): Promise<ShellResult> {
+async function runShell(
+  command: string,
+  cwd: string,
+  timeoutMs: number,
+  env: NodeJS.ProcessEnv = {},
+): Promise<ShellResult> {
   try {
     const result = await execAsync(command, {
       cwd,
       timeout: timeoutMs,
       maxBuffer: 32 * 1024 * 1024,
       windowsHide: true,
+      env: { ...process.env, ...env },
     })
     const output = [String(result.stdout ?? ""), String(result.stderr ?? "")].filter(Boolean).join("\n").trim()
     return { code: 0, output }
@@ -83,7 +89,12 @@ export async function detectVerification(project: string, plan: SquadPlan | unde
   return commands
 }
 
-export async function runGate(worktree: string, commands: readonly string[], timeoutMs = 15 * 60_000): Promise<GateResult> {
+export async function runGate(
+  worktree: string,
+  commands: readonly string[],
+  timeoutMs = 15 * 60_000,
+  env: NodeJS.ProcessEnv = {},
+): Promise<GateResult> {
   const startedAt = new Date().toISOString()
   if (!commands.length) {
     return {
@@ -98,7 +109,7 @@ export async function runGate(worktree: string, commands: readonly string[], tim
   let ok = true
   for (const command of commands) {
     lines.push(`$ ${command}`)
-    const result = await runShell(command, worktree, timeoutMs)
+    const result = await runShell(command, worktree, timeoutMs, env)
     if (result.output) lines.push(result.output)
     lines.push(`[exit ${result.code}]`)
     if (result.code !== 0) {
@@ -113,4 +124,27 @@ export async function runGate(worktree: string, commands: readonly string[], tim
     startedAt,
     finishedAt: new Date().toISOString(),
   }
+}
+
+function findOnPath(name: string): boolean {
+  const pathValue = process.env.PATH ?? ""
+  const extensions = process.platform === "win32"
+    ? (process.env.PATHEXT ?? ".EXE;.CMD;.BAT;.COM").split(";")
+    : [""]
+  for (const dir of pathValue.split(path.delimiter)) {
+    if (!dir) continue
+    for (const extension of extensions) {
+      const candidate = path.join(dir, `${name}${extension.toLowerCase()}`)
+      if (existsSync(candidate)) return true
+      const upper = path.join(dir, `${name}${extension.toUpperCase()}`)
+      if (upper !== candidate && existsSync(upper)) return true
+    }
+  }
+  return false
+}
+
+export function gateEnvironment(input: { sccache?: boolean } = {}): NodeJS.ProcessEnv {
+  if (process.env.RUSTC_WRAPPER) return {}
+  if (!input.sccache) return {}
+  return findOnPath("sccache") ? { RUSTC_WRAPPER: "sccache" } : {}
 }

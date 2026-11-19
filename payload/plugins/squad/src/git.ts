@@ -342,15 +342,37 @@ export async function baselineWorktree(worktree: string): Promise<string> {
   return head.stdout.trim()
 }
 
-export async function commitWorktree(worktree: string, message: string): Promise<string | null> {
+async function stageAll(worktree: string): Promise<void> {
   try {
     await git(worktree, ["add", "-A", "--", ".", ...SECRET_PATHSPECS])
   } catch {
     await git(worktree, ["add", "-A"])
     await tryGit(worktree, ["reset", "--", ".env", ".env.local", "node_modules", ".venv", "venv", "vendor"])
   }
+}
+
+async function hasStagedChanges(worktree: string): Promise<boolean> {
   const staged = await tryGit(worktree, ["diff", "--cached", "--quiet"])
-  if (staged) return null
+  return !staged
+}
+
+export async function commitWorktree(worktree: string, message: string): Promise<string | null> {
+  await stageAll(worktree)
+  if (!(await hasStagedChanges(worktree))) return null
+  await git(worktree, [
+    "-c", "user.name=Squad",
+    "-c", "user.email=squad@local",
+    "commit", "--no-gpg-sign", "--no-verify",
+    "-m", message,
+  ])
+  const head = await git(worktree, ["rev-parse", "HEAD"])
+  return head.stdout.trim()
+}
+
+export async function squashToBaseline(worktree: string, baseline: string, message: string): Promise<string | null> {
+  await git(worktree, ["reset", "--soft", baseline])
+  await stageAll(worktree)
+  if (!(await hasStagedChanges(worktree))) return null
   await git(worktree, [
     "-c", "user.name=Squad",
     "-c", "user.email=squad@local",
@@ -382,7 +404,7 @@ export async function cherryPick(worktree: string, commit: string): Promise<{ ok
 
 export async function status(worktree: string): Promise<string> {
   const result = await git(worktree, ["status", "--porcelain", "-uall"])
-  return result.stdout.trim()
+  return result.stdout.replace(/[\r\n]+$/, "")
 }
 
 export async function diffStat(worktree: string, base: string, head = "HEAD"): Promise<string> {
@@ -393,6 +415,38 @@ export async function diffStat(worktree: string, base: string, head = "HEAD"): P
 export async function changedFiles(worktree: string, base: string, head = "HEAD"): Promise<string[]> {
   const result = await git(worktree, ["diff", "--name-only", `${base}..${head}`])
   return result.stdout.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
+}
+
+export async function pendingChangedFiles(worktree: string, base: string): Promise<string[]> {
+  const committed = await changedFiles(worktree, base)
+  const statusText = await status(worktree)
+  const pending = statusText
+    .split(/\r?\n/)
+    .map((line) => line.slice(3).trim())
+    .map((raw) => {
+      const arrow = raw.indexOf(" -> ")
+      return (arrow >= 0 ? raw.slice(arrow + 4) : raw).replace(/^"|"$/g, "")
+    })
+    .filter(Boolean)
+  return [...new Set([...committed, ...pending])]
+}
+
+export async function resetWorktreeTo(worktree: string, commit: string): Promise<void> {
+  await git(worktree, ["reset", "--hard", commit])
+  await tryGit(worktree, ["clean", "-fd"])
+}
+
+export async function diffPaths(
+  worktree: string,
+  base: string,
+  paths: readonly string[],
+  maxChars = 6_000,
+): Promise<string> {
+  if (!paths.length) return ""
+  const args = ["diff", `${base}..HEAD`, "--", ...paths]
+  const result = await tryGit(worktree, args)
+  const text = (result?.stdout ?? "").trim()
+  return text.length > maxChars ? `${text.slice(0, maxChars)}\n…` : text
 }
 
 export async function logOneline(worktree: string, base: string, head = "HEAD"): Promise<string> {

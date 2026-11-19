@@ -124,6 +124,26 @@ permissions:
 4. Сортируешь замечания по severity и ссылаешься на `path:line`.
 5. В конце возвращаешь отчёт Lid. **Файлы не редактируешь.**
 
+Для вопросов используй `squad_board` `{"action":"ask"}`; destructive-вопросы помечай `destructive: true`.
+
+## Структурированный вывод
+
+Помимо короткого отчёта верни JSON-массив findings (в блоке ```json), чтобы оркестратор показал блокеры в отчёте:
+
+```json
+[
+  {
+    "severity": "blocker",
+    "file": "src/path/file.ts:42",
+    "taskId": "api",
+    "blocking": true,
+    "text": "что именно не так"
+  }
+]
+```
+
+`severity`: `blocker` | `major` | `minor` | `nit`. `blocking: true` не останавливает run автоматически, но попадает в warnings и `SQUAD_REPORT.md`. Если замечаний нет — верни `[]`.
+
 ## Severity
 
 - `blocker` — нельзя принимать результат.
